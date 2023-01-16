@@ -4,14 +4,13 @@ const urlModel=new mongoose.Schema({
     urlCode:{
         type:String,
         required:true,
-        lowerCase:true
+        lowerCase:true,
+        unique:true
     },
     longUrl:{
         type:String,
         required:true,
         
-
-
     },
     shortUrl:{
         type:String,
