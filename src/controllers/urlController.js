@@ -8,6 +8,7 @@ const createurl=async function(req,res){
     //--------------if no data is provided in a body-----------------------------------------
     let data=req.body;
     if(Object.keys(data).length==0){return res.status(400).send({status:false , message:"provide some input of longUrl"})}
+    if(Object.keys(data).length!=1){return res.status(400).send({status:false , message:"body only accept longUrl key"})}
     //------------checking whether the key name is longUrl or not--------------------
 
     let longUrl=data.longUrl
@@ -39,16 +40,16 @@ const createurl=async function(req,res){
 }
  const geturl = async function(req,res){
     try{
-    let codeUrl=req.params.codeUrl
+    let urlCode=req.params.urlCode
     //------checking whether codeUrl in  path params is provide or not------------ 
-    if(!codeUrl) return res.status(400).send({status:false,message:"please Enter a codeUrl in params"});
+    if(!urlCode) return res.status(400).send({status:false,message:"please Enter a codeUrl in params"});
 
     //---------checking whether codeUrl is valid or not-------------
-    let validCodeUrl=shortid.isValid(codeUrl)
+    let validCodeUrl=shortid.isValid(urlCode)
     if(!validCodeUrl) return res.status(400).send({status:false,message:"please Enter a valid CodeUrl"})
 
    //--------if the codeUrl is valid then we are fetching the data---------- 
-    let longUrl=await urlModel.findOne({urlCode:codeUrl}).select({longUrl:1,_id:0})
+    let longUrl=await urlModel.findOne({urlCode:urlCode}).select({longUrl:1,_id:0})
     if(!longUrl) return res.status(404).send({status:false,message:"Url not found"})
     res.status(302).redirect(longUrl["longUrl"])
     
