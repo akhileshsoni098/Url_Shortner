@@ -22,7 +22,7 @@ const redisClient = redis.createClient(
 
  //--creating GET_ASYNC and SETASYNC-----------------
  const SETEX_ASYNC = promisify(redisClient.SETEX).bind(redisClient);
- const GETEX_ASYNC = promisify(redisClient.GETEX).bind(redisClient);
+ const GET_ASYNC = promisify(redisClient.GET).bind(redisClient);
  
  
 ///------------post api--------------------------------
@@ -52,7 +52,7 @@ const createurl=async function(req,res){
     }
 
     //-------------checking whether the short url is already generated with this long url-------------------
-    let redisdata = await GETEX_ASYNC(`${longUrl}`);
+    let redisdata = await GET_ASYNC(`${longUrl}`);
     if (redisdata) {
        redisdata = JSON.parse(redisdata);
        console.log(redisdata)
@@ -95,7 +95,7 @@ const geturl = async function(req,res){
     if(!validCodeUrl) return res.status(400).send({status:false,message:"please Enter a valid CodeUrl"})
 
   //--------if the codeUrl is valid then we are fetching the data---------- 
-    let cachedUrl = await GETEX_ASYNC(`${urlCode}`,60)
+    let cachedUrl = await GET_ASYNC(`${urlCode}`)
     let objCache = JSON.parse(cachedUrl)
         if (objCache) {
             return res.status(302).redirect(objCache.longUrl)
@@ -103,7 +103,7 @@ const geturl = async function(req,res){
         else{
             let longUrlData=await urlModel.findOne({urlCode:urlCode}).select({longUrl:1,_id:0})
             if(!longUrlData) return res.status(404).send({status:false,message:"Url not found"})
-            await SETEX_ASYNC(`${urlCode}`, 6, JSON.stringify(longUrlData))
+            await SETEX_ASYNC(`${urlCode}`, 86400, JSON.stringify(longUrlData))
             return res.status(302).redirect(longUrlData["longUrl"])
             
         }
