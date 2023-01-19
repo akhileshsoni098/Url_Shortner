@@ -78,9 +78,9 @@ const createurl=async function(req,res){
     };
     const Data = await urlModel.create(url);
     await SETEX_ASYNC(`${urlCode}`,86400, JSON.stringify(Data));
-    res.status(201).send({status: true,data: {longUrl: Data.longUrl,shortUrl: Data.shortUrl,urlCode: Data.urlCode.toLowerCase()}});
+    return  res.status(201).send({status: true,data: {longUrl: Data.longUrl,shortUrl: Data.shortUrl,urlCode: Data.urlCode.toLowerCase()}});
   } catch (error) {
-    res.status(500).send({ msg: error.message});
+    return res.status(500).send({ msg: error.message});
 }
 
 }
@@ -106,13 +106,12 @@ const geturl = async function(req,res){
             let longUrlData=await urlModel.findOne({urlCode:urlCode}).select({longUrl:1,_id:0})
             if(!longUrlData) return res.status(404).send({status:false,message:"Url not found"})
             await SETEX_ASYNC(`${urlCode}`, 86400, JSON.stringify(longUrlData))
-            res.status(302).redirect(longUrlData["longUrl"])
+            return res.status(302).redirect(longUrlData["longUrl"])
             
-    
         }
     
     }catch(error){
-        res.status(500).send({status:false,msg:error.message})
+       return res.status(500).send({status:false,msg:error.message})
 
     }  
       
