@@ -17,54 +17,75 @@ const redisClient = redis.createClient(
   });
   
   redisClient.on("connect", async function () {
-    console.log("Connected to Redis..");
+    console.log("Connected to Redis..");
   });
 
  //--creating GET_ASYNC and SETASYNC-----------------
- const SET_ASYNC = promisify(redisClient.SET).bind(redisClient);
+ const SETEX_ASYNC = promisify(redisClient.SETEX).bind(redisClient);
  const GET_ASYNC = promisify(redisClient.GET).bind(redisClient);
  
  
 
 const createurl=async function(req,res){
-    try{
-    //--------------if no data is provided in a body-----------------------------------------
-    let data=req.body;
-    if(Object.keys(data).length==0){return res.status(400).send({status:false , message:"provide some input of longUrl"})}
-    if(Object.keys(data).length!=1){return res.status(400).send({status:false , message:"body only accept longUrl key"})}
-
-    //------------checking whether the key name is longUrl or not--------------------
-
-    let longUrl=data.longUrl
-    if(!longUrl) return res.status(400).send({status:false,msg:"please provide key longUrl"})
-    //-----------checking whether type of longUrl is string or not--------------
-    if(typeof(longUrl) != "string"){return res.status(400).send({status:false , message:"Please provide url in a string format "})}
-
-    //------------checking whetther longUrl is valid or not---------------------
-    let validUrl=validator.isURL(longUrl.trim());
-    if(!validUrl){
-        res.status(400).send({status:false,message:"Not a Valid Url"});
+    try {
+        //--------------if no data is provided in a body-----------------------------------------
+        let data = req.body;
+        if (Object.keys(data).length == 0) {
+          return res.status(400).send({ status: false, message: "provide some input of longUrl" })
+        }
+        if (Object.keys(data).length != 1) {
+          return res.status(400).send({ status: false, message: "body only accept longUrl key" });
+          }
+    
+        //------------checking whether the key name is longUrl or not--------------------
+        let longUrl = data.longUrl;
+        if (!longUrl)
+          return res.status(400).send({ status: false, msg: "please provide key longUrl" });
+        //-----------checking whether type of longUrl is string or not--------------
+        if (typeof longUrl != "string") {
+          return res.status(400).send({status: false,message: "Please provide url in a string format "});
+        }
+        //------------checking whetther longUrl is valid or not---------------------
+    let validUrl = validator.isURL(longUrl.trim());
+    if (!validUrl) {
+     return res.status(400).send({ status: false, message: "Not a Valid Url" });
     }
-   
 
     //-------------checking whether the short url is already generated with this long url-------------------
-    const sameUrl = await urlModel.findOne({longUrl:longUrl}).select({_id:0 , __v:0 ,createdAt:0 ,updatedAt:0})
-        if(sameUrl){return res.status(200).send({status:true , data:sameUrl})}
+    let redisDa = await GET_ASYNC(`${longUrl}`);
+    if (redisDa) {
+      redisDa = JSON.parse(redisDa);
+      console.log(redisDa)
     
-    //---------if short url is not generated yet with this long url then we are generating short url----------
-    let urlCode =shortid.generate(longUrl)
-    
-    let shortUrl=baseUrl+"/"+urlCode.toLowerCase();
-    const url = { longUrl: longUrl, urlCode: urlCode.toLowerCase(), shortUrl: shortUrl.toLowerCase() };
-        const Data = await urlModel.create(url)
-        const data2=await SET_ASYNC(`${urlCode}`, JSON.stringify(Data)) 
-        console.log(data2)
-        res.status(201).send({ status: true, data: { longUrl: Data.longUrl, shortUrl: Data.shortUrl, urlCode: Data.urlCode.toLowerCase() } });
-}catch(error){
-    res.status(500).send({msg:error.message})
+     return res.send({ msg: redisDa });
+    } else {
+      const sameUrl = await urlModel.findOne({ longUrl: longUrl }).select({ _id: 0, __v: 0, createdAt: 0, updatedAt: 0 });
+      if (sameUrl) {
+        await SETEX_ASYNC(`${longUrl}`,86400, JSON.stringify(sameUrl));
+        return res.status(200).send({ status: true, data: sameUrl });
+      }
+     
+    }
 
-} 
+    //---------if short url is not generated yet with this long url then we are generating short url----------
+    let urlCode = shortid.generate(longUrl);
+
+    let shortUrl = baseUrl + "/" + urlCode.toLowerCase();
+    const url = {
+      longUrl: longUrl,
+      urlCode: urlCode.toLowerCase(),
+      shortUrl: shortUrl
+    };
+    const Data = await urlModel.create(url);
+    await SETEX_ASYNC(`${urlCode}`,86400, JSON.stringify(Data));
+    res.status(201).send({status: true,data: {longUrl: Data.longUrl,shortUrl: Data.shortUrl,urlCode: Data.urlCode.toLowerCase()}});
+  } catch (error) {
+    res.status(500).send({ msg: error.message});
 }
+
+}
+
+    
 const geturl = async function(req,res){
     try{
     let urlCode=req.params.urlCode
@@ -75,14 +96,20 @@ const geturl = async function(req,res){
     let validCodeUrl=shortid.isValid(urlCode)
     if(!validCodeUrl) return res.status(400).send({status:false,message:"please Enter a valid CodeUrl"})
 
-// //    //--------if the codeUrl is valid then we are fetching the data---------- 
-    // const result=await GET_ASYNC(`${urlCode}`)
-    // console.log(result)
-    res.send({msg:false})
-    let longUrl=await urlModel.findOne({urlCode:urlCode}).select({longUrl:1,_id:0})
+  //--------if the codeUrl is valid then we are fetching the data---------- 
+    let cachedUrl = await GET_ASYNC(`${urlCode}`)
+    let objCache = JSON.parse(cachedUrl)
+        if (objCache) {
+            return res.status(302).redirect(objCache.longUrl)
+        }
+        else{
+            let longUrlData=await urlModel.findOne({urlCode:urlCode}).select({longUrl:1,_id:0})
+            if(!longUrlData) return res.status(404).send({status:false,message:"Url not found"})
+            await SETEX_ASYNC(`${urlCode}`, 86400, JSON.stringify(longUrlData))
+            res.status(302).redirect(longUrlData["longUrl"])
+            
     
-    if(!longUrl) return res.status(404).send({status:false,message:"Url not found"})
-    res.status(302).redirect(longUrl["longUrl"])
+        }
     
     }catch(error){
         res.status(500).send({status:false,msg:error.message})
@@ -91,12 +118,8 @@ const geturl = async function(req,res){
       
  }
 
- const testapi=async function(req,res){
-    await GET_ASYNC("urlCode")
-    res.send(result)
- }
+ 
 
-
- module.exports.testapi=testapi
+ 
 module.exports.createurl=createurl;
-module.exports.geturl=geturl
+module.exports.geturl=geturl;
