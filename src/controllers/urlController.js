@@ -25,7 +25,7 @@ const redisClient = redis.createClient(
  const GET_ASYNC = promisify(redisClient.GET).bind(redisClient);
  
  
-
+///------------post api--------------------------------
 const createurl=async function(req,res){
     try {
         //--------------if no data is provided in a body-----------------------------------------
@@ -52,19 +52,17 @@ const createurl=async function(req,res){
     }
 
     //-------------checking whether the short url is already generated with this long url-------------------
-    let redisDa = await GET_ASYNC(`${longUrl}`);
-    if (redisDa) {
-      redisDa = JSON.parse(redisDa);
-      console.log(redisDa)
-    
-     return res.send({ msg: redisDa });
-    } else {
-      const sameUrl = await urlModel.findOne({ longUrl: longUrl }).select({ _id: 0, __v: 0, createdAt: 0, updatedAt: 0 });
-      if (sameUrl) {
-        await SETEX_ASYNC(`${longUrl}`,86400, JSON.stringify(sameUrl));
+    let redisdata = await GET_ASYNC(`${longUrl}`);
+    if (redisdata) {
+       redisdata = JSON.parse(redisdata);
+       console.log(redisdata)
+       return res.send({data:{longUrl:redisdata.longUrl, shortUrl:redisdata.shortUrl,urlCode:redisdata.urlCode}});
+    } 
+    else {
+       const sameUrl = await urlModel.findOne({ longUrl: longUrl }).select({ _id: 0, __v: 0, createdAt: 0, updatedAt: 0 });
+       if (sameUrl) {
         return res.status(200).send({ status: true, data: sameUrl });
       }
-     
     }
 
     //---------if short url is not generated yet with this long url then we are generating short url----------
@@ -77,15 +75,14 @@ const createurl=async function(req,res){
       shortUrl: shortUrl
     };
     const Data = await urlModel.create(url);
-    await SETEX_ASYNC(`${urlCode}`,86400, JSON.stringify(Data));
+    await SETEX_ASYNC(`${longUrl}`,86400, JSON.stringify(Data));
     return  res.status(201).send({status: true,data: {longUrl: Data.longUrl,shortUrl: Data.shortUrl,urlCode: Data.urlCode.toLowerCase()}});
   } catch (error) {
     return res.status(500).send({ msg: error.message});
 }
-
 }
 
-    
+//--------------------------- get api----------------------------------- 
 const geturl = async function(req,res){
     try{
     let urlCode=req.params.urlCode
